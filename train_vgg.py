@@ -6,16 +6,18 @@ import torch.nn as nn
 import torch.optim as optim
 from torch import hub
 from torch.backends import cudnn
-from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from config import Config
 from datasets.classifier_dataset import DATA
 from models.vgg import vgg16
-from tools.train_utils import parse_args, train, test
+from tools.train_utils import parse_args, train, validate
 
 torch.backends.cudnn.benchmark = True
-hub.set_dir("E:\\Download\\torch_home")
+
+CONFIG = Config()
+hub.set_dir(CONFIG['TORCH_HOME'])
 
 
 def main():
@@ -40,25 +42,27 @@ def main():
     ])
     train_data = DATA(data_root=args.data_dir, mode='train', transform=transform, classes=classes, seed=args.seed)
     # plot_image(train_data)
-    train_loader = DataLoader(train_data, num_workers=2, batch_size=args.batch_size, shuffle=True, drop_last=True,
+    train_loader = DataLoader(train_data, num_workers=1, batch_size=args.batch_size, shuffle=True, drop_last=True,
                               pin_memory=True)
-    test_data = DATA(data_root=args.data_dir, mode='validation', transform=transform, classes=classes, seed=args.seed)
-    test_loader = DataLoader(test_data, num_workers=2, batch_size=args.batch_size, shuffle=True, drop_last=True,
-                             pin_memory=True)
+    val_data = DATA(data_root=args.data_dir, mode='validation', transform=transform, classes=classes, seed=args.seed)
+    val_loader = DataLoader(val_data, num_workers=1, batch_size=args.batch_size, shuffle=True, drop_last=True,
+                            pin_memory=True)
 
     print("Initializing Networks")
-    model = vgg16(pretrained=True, progress=True)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    model = vgg16(pretrained=True)
+    optimizer = optim.Adam(model.parameters())
     model.cuda()
-    cse_loss = nn.CrossEntropyLoss().cuda()
+    criterion = nn.CrossEntropyLoss().cuda()
     # writer = SummaryWriter('%s/logs/%s' % (args.save_dir, sig))
 
+    if args.evaluate:
+        validate(val_loader, model, criterion, args)
+        return
+
     print("Start Training")
-    scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
-        train(args, model, train_loader, optimizer, cse_loss, epoch)
-        test(model, test_loader, cse_loss)
-        scheduler.step()
+        train(train_loader, model, optimizer, criterion, epoch, args)
+        validate(val_loader, model, criterion, args)
 
     torch.save(model.state_dict(), "dffd.pt")
 
