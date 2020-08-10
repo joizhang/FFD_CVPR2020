@@ -44,26 +44,25 @@ def train(train_loader, model, optimizer, criterion, epoch, args):
     model.train()
 
     end = time.time()
-    with torch.no_grad():
-        for batch_idx, (images, target) in enumerate(train_loader):
-            images, target = images.cuda(), target.cuda()
-            # compute output
-            output = model(images)
-            loss = criterion(output, target)
+    for batch_idx, (images, target) in enumerate(train_loader):
+        images, target = images.cuda(), target.cuda()
+        # compute output
+        output = model(images)
+        loss = criterion(output, target)
 
-            # measure accuracy and record loss
-            acc1, = accuracy(output, target)
-            losses.update(loss.item(), images.size(0))
-            top1.update(acc1[0], images.size(0))
+        # measure accuracy and record loss
+        acc1, = accuracy(output, target)
+        losses.update(loss.item(), images.size(0))
+        top1.update(acc1[0], images.size(0))
 
-            # compute gradient and do Adam step
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+        # compute gradient and do Adam step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-            batch_time.update(time.time() - end)
-            if batch_idx % args.print_freq == 0:
-                progress.display(batch_idx)
+        batch_time.update(time.time() - end)
+        if batch_idx % args.print_freq == 0:
+            progress.display(batch_idx)
 
 
 def validate(val_loader, model, criterion, args):
