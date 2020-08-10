@@ -13,10 +13,9 @@ from torchvision import transforms, datasets
 
 from models.vgg import vgg16
 from tools.model_utils import validate
-from torchvision.models import vgg16_bn
 
 torch.backends.cudnn.benchmark = True
-hub.set_dir("E:\\Download\\torch_home")
+hub.set_dir("/home/xinlin/data2/torch_home")
 
 
 class VGGTestCase(unittest.TestCase):
@@ -24,11 +23,11 @@ class VGGTestCase(unittest.TestCase):
     def test_vgg16(self):
         gpu = 0
         torch.cuda.set_device(gpu)
-        model = vgg16_bn(pretrained=True)
+        model = vgg16(pretrained=True)
         model = model.cuda(gpu)
         criterion = nn.CrossEntropyLoss().cuda(gpu)
 
-        valdir = os.path.join('E:\\Datasets\\ILSVRC2012', 'val')
+        valdir = os.path.join('/home/xinlin/data/ILSVRC2012', 'val')
         self.assertEqual(True, os.path.exists(valdir))
         val_loader = torch.utils.data.DataLoader(
             datasets.ImageFolder(valdir, transforms.Compose([
@@ -37,7 +36,7 @@ class VGGTestCase(unittest.TestCase):
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ])),
-            batch_size=5, shuffle=False,
+            batch_size=10, shuffle=False,
             num_workers=2, pin_memory=True)
 
         validate(val_loader, model, criterion)

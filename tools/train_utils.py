@@ -15,14 +15,14 @@ def parse_args():
     parser.add_argument('--data-dir', type=str, help='directory for data')
     parser.add_argument('--arch', metavar='ARCH', default='vgg16', choices=model_names,
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
-    parser.add_argument('--epochs', type=int, default=10, metavar='N',
-                        help='number of epochs to train (default: 10)')
-    parser.add_argument('--batch-size', type=int, default=32, help='batch size')
-    parser.add_argument('--lr', type=float, default=0.1, help='learning rate')
-    parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
-                        help='Learning rate step gamma (default: 0.7)')
+    parser.add_argument('--epochs', type=int, default=15, metavar='N',
+                        help='number of epochs to train (default: 15)')
+    parser.add_argument('--batch-size', type=int, default=100, help='batch size')
+    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
+    # parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
+    #                     help='Learning rate step gamma (default: 0.7)')
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--seed', type=int, default=1, help='manual seed')
+    parser.add_argument('--seed', type=int, default=111, help='manual seed')
     # parser.add_argument('--signature', default=str(datetime.datetime.now()))
     parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
@@ -31,13 +31,13 @@ def parse_args():
     return opt
 
 
-def train(args, model, train_loader, optimizer, cse_loss, epoch):
+def train(args, model, train_loader, optimizer, criterion, epoch):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.cuda(), target.cuda()
         optimizer.zero_grad()
         output = model(data)
-        loss = cse_loss(output, target)
+        loss = criterion(output, target)
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
@@ -46,7 +46,7 @@ def train(args, model, train_loader, optimizer, cse_loss, epoch):
                                   100. * batch_idx / len(train_loader), loss.item()))
 
 
-def test(model, test_loader, cse_loss):
+def validate(model, test_loader, criterion):
     model.eval()
     test_loss = 0
     correct = 0
@@ -54,7 +54,7 @@ def test(model, test_loader, cse_loss):
         for data, target in test_loader:
             data, target = data.cuda(), target.cuda()
             output = model(data)
-            test_loss += cse_loss(output, target, reduction='sum').item()  # sum up batch loss
+            test_loss += criterion(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
