@@ -1,26 +1,7 @@
 import torch
 import torch.nn as nn
-from .utils import load_state_dict_from_url
-
-
-__all__ = [
-    'VGG', 'vgg11', 'vgg11_bn', 'vgg13', 'vgg13_bn', 'vgg16', 'vgg16_bn',
-    'vgg19_bn', 'vgg19',
-]
-
-
-model_urls = {
-    'vgg11': 'https://download.pytorch.org/models/vgg11-bbd30ac9.pth',
-    'vgg13': 'https://download.pytorch.org/models/vgg13-c768596a.pth',
-    'vgg16': 'https://download.pytorch.org/models/vgg16-397923af.pth',
-    'vgg19': 'https://download.pytorch.org/models/vgg19-dcbb9e9d.pth',
-    'vgg11_bn': 'https://download.pytorch.org/models/vgg11_bn-6002323d.pth',
-    'vgg13_bn': 'https://download.pytorch.org/models/vgg13_bn-abd245e5.pth',
-    'vgg16_bn': 'https://download.pytorch.org/models/vgg16_bn-6c64b313.pth',
-    'vgg19_bn': 'https://download.pytorch.org/models/vgg19_bn-c79401a0.pth',
-}
-
-
+from torch.hub import load_state_dict_from_url
+from models.vgg import model_urls, cfgs
 
 
 class VGG(nn.Module):
@@ -48,10 +29,11 @@ class VGG(nn.Module):
             self._initialize_weights()
 
         self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
         x = self.features1(x)
         map = self.features_map(x)
-        map, proj = do_pca(map, training=self.is_training)
+        map, proj = self.do_pca(map, training=self.is_training)
         map = self.sigmoid(map)
         x = self.features2(x * map)
         x = self.avgpool(x)
@@ -72,7 +54,7 @@ class VGG(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.constant_(m.bias, 0)
 
-    def do_pca(feats, training=True):
+    def do_pca(self, feats, training=True):
         s = feats.shape
         feats = torch.reshape(feats, [s[0] * s[2] * s[3], s[1]])
         # Memorize the PCA projection vector and feature mean
@@ -99,21 +81,6 @@ class VGG(nn.Module):
             result = torch.reshape(result, [s[0], 1, s[2], s[3]])
             return result
 
-def make_layers1(cfg, batch_norm=False):
-    layers = []
-    in_channels = 3
-    for v in cfg:
-        if v == 'M':
-            layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-        else:
-            conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
-            if batch_norm:
-                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
-            else:
-                layers += [conv2d, nn.ReLU(inplace=True)]
-            in_channels = v
-    return nn.Sequential(*layers)
-
 
 def make_layers2(cfg, batch_norm=False):
     layers = []
@@ -130,6 +97,7 @@ def make_layers2(cfg, batch_norm=False):
             in_channels = v
     return nn.Sequential(*layers)
 
+
 cfgs = {
     'A': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'B': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
@@ -143,7 +111,8 @@ cfgs = {
 def _vgg(arch, cfg, batch_norm, pretrained, progress, **kwargs):
     if pretrained:
         kwargs['init_weights'] = False
-    model = VGG(make_layers1(cfgs['D1'], batch_norm=batch_norm), make_layers2(cfgs['D2'], batch_norm=batch_norm), **kwargs)
+    model = VGG(make_layers1(cfgs['D1'], batch_norm=batch_norm), make_layers2(cfgs['D2'], batch_norm=batch_norm),
+                **kwargs)
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls[arch],
                                               progress=progress)
@@ -153,10 +122,10 @@ def _vgg(arch, cfg, batch_norm, pretrained, progress, **kwargs):
         for name, weights in state_dict.items():
             if 'features' in name:
                 index = name.split('.')[1]
-                if(0 <= int(index) and int(index) < 17):
+                if (0 <= int(index) and int(index) < 17):
                     name_new = 'features1.' + name.split('.')[1] + '.' + name.split('.')[2]
                     state_dict_new[name_new] = state_dict[name]
-                elif(17 <= int(index) and int(index) < 29):
+                elif (17 <= int(index) and int(index) < 29):
                     name_new = 'features2.' + str(int(name.split('.')[1]) - 17) + '.' + name.split('.')[2]
                     state_dict_new[name_new] = state_dict[name]
             else:

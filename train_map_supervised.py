@@ -1,17 +1,20 @@
 import argparse
 import datetime
-import numpy as np
 import os
 import random
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from imageio import imread
-from network.xception_map import xception
-from tensorboardX import SummaryWriter
-from torchvision import transforms
 import torchvision.utils as vutils
+from imageio import imread
+from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
+from torchvision import transforms
+
+from models.xception_map import xception
+
 torch.backends.deterministic = True
 
 parser = argparse.ArgumentParser()
@@ -59,7 +62,6 @@ class DATA(object):
         for file_name in file_names:
             self.img_paths.append(file_name)
 
-
     def load_img(self, path):
         img = imread(path)
         img = self.transform(img)
@@ -70,7 +72,6 @@ class DATA(object):
         img = self.transform_mask(img)
 
         return img
-
 
     def __getitem__(self, index):
         image_path_real = '{:s}images/{:0>5d}-0.jpg'.format(self.data_root, index)
@@ -93,31 +94,35 @@ class DATA(object):
         return img_real0, img_fake1, img_fake2, img_fake3, img_mask0, img_mask1, img_mask2, img_mask3, 0, 1, 1, 1
 
     def __len__(self):
-        return len(self.img_paths)//4
+        return len(self.img_paths) // 4
 
 
 def get_training_batch(data_loader):
     while True:
         for sequence in data_loader:
-            batch = sequence[0].cuda(), sequence[1].cuda(), sequence[2].cuda(), sequence[3].cuda(), sequence[4].cuda(), sequence[5].cuda(), \
-                    sequence[6].cuda(), sequence[7].cuda(), sequence[8].cuda(), sequence[9].cuda(), sequence[10].cuda(), sequence[11].cuda()
+            batch = sequence[0].cuda(), sequence[1].cuda(), sequence[2].cuda(), sequence[3].cuda(), sequence[4].cuda(), \
+                    sequence[5].cuda(), \
+                    sequence[6].cuda(), sequence[7].cuda(), sequence[8].cuda(), sequence[9].cuda(), sequence[10].cuda(), \
+                    sequence[11].cuda()
             yield batch
 
 
 print("Initializing Data Loader")
 train_data = DATA(data_root=(opt.data_dir + 'train/'))
-train_loader = DataLoader(train_data, num_workers=8, batch_size=opt.batch_size//4, shuffle=True, drop_last=True, pin_memory=True)
+train_loader = DataLoader(train_data, num_workers=8, batch_size=opt.batch_size // 4, shuffle=True, drop_last=True,
+                          pin_memory=True)
 training_batch_generator = get_training_batch(train_loader)
 
 test_data = DATA(data_root=(opt.data_dir + 'validation/'))
-test_loader = DataLoader(test_data, num_workers=8, batch_size=opt.batch_size//4, shuffle=True, drop_last=True, pin_memory=True)
+test_loader = DataLoader(test_data, num_workers=8, batch_size=opt.batch_size // 4, shuffle=True, drop_last=True,
+                         pin_memory=True)
 testing_batch_generator = get_training_batch(test_loader)
 
 print("Loading Templates")
 templates_list = []
 for i in range(10):
     img = imread('./MCT/template{:d}.png'.format(i))
-    templates_list.append(transforms.functional.to_tensor(img)[0:1,0:19,0:19])
+    templates_list.append(transforms.functional.to_tensor(img)[0:1, 0:19, 0:19])
 templates = torch.stack(templates_list).cuda()
 templates = templates.squeeze(1)
 templates = templates.repeat(16, 1, 1, 1)
@@ -153,7 +158,7 @@ def test(batch, label, mask_gt):
         loss2 = cse_loss(x, label)
         prediction = torch.max(x, dim=1)[1]
         accu = (prediction.eq(label.long())).sum()
-    return [loss2.item(), loss1.item(), accu.item()/len(batch)], mask
+    return [loss2.item(), loss1.item(), accu.item() / len(batch)], mask
 
 
 def write_tfboard(vals, itr, name):
@@ -164,8 +169,9 @@ def write_tfboard(vals, itr, name):
 writer = SummaryWriter('%s/logs/%s' % (opt.save_dir, sig))
 itr = opt.it_start
 print("Start Training at iteration {:d}".format(itr))
-while itr != opt.it_end+1:
-    batch_real0_train, batch_fake1_train, batch_fake2_train, batch_fake3_train, batch_mask0_train, batch_mask1_train, batch_mask2_train, batch_mask3_train, label_real_train, label_fake_train, label_fake_train, label_fake_train = next(training_batch_generator)
+while itr != opt.it_end + 1:
+    batch_real0_train, batch_fake1_train, batch_fake2_train, batch_fake3_train, batch_mask0_train, batch_mask1_train, batch_mask2_train, batch_mask3_train, label_real_train, label_fake_train, label_fake_train, label_fake_train = next(
+        training_batch_generator)
     batch_train = torch.cat((batch_real0_train, batch_fake1_train, batch_fake2_train, batch_fake3_train), 0)
     label_train = torch.cat((label_real_train, label_fake_train, label_fake_train, label_fake_train), 0)
     mask_train = torch.cat((batch_mask0_train, batch_mask1_train, batch_mask2_train, batch_mask3_train), 0)
@@ -173,7 +179,8 @@ while itr != opt.it_end+1:
     write_tfboard(loss, itr, name='TRAIN')
 
     if itr % 100 == 0:
-        batch_real0_test, batch_fake1_test, batch_fake2_test, batch_fake3_test, batch_mask0_test, batch_mask1_test, batch_mask2_test, batch_mask3_test, label_real_test, label_fake_test, label_fake_test, label_fake_test = next(testing_batch_generator)
+        batch_real0_test, batch_fake1_test, batch_fake2_test, batch_fake3_test, batch_mask0_test, batch_mask1_test, batch_mask2_test, batch_mask3_test, label_real_test, label_fake_test, label_fake_test, label_fake_test = next(
+            testing_batch_generator)
         batch_test = torch.cat((batch_real0_test, batch_fake1_test, batch_fake2_test, batch_fake3_test), 0)
         label_test = torch.cat((label_real_test, label_fake_test, label_fake_test, label_fake_test), 0)
         mask_test = torch.cat((batch_mask0_test, batch_mask1_test, batch_mask2_test, batch_mask3_test), 0)

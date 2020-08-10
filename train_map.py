@@ -1,19 +1,22 @@
 import argparse
 import datetime
-import numpy as np
 import os
 import random
+
+import cv2
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from imageio import imread
-from network.xception_map import xception
-from network.vgg_map import vgg16
-from tensorboardX import SummaryWriter
-from torchvision import transforms
 import torchvision.utils as vutils
+from imageio import imread
+from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
-import cv2
+from torchvision import transforms
+
+from models.vgg_map import vgg16
+from models.xception_map import xception
+
 torch.backends.deterministic = True
 
 parser = argparse.ArgumentParser()
@@ -28,7 +31,7 @@ parser.add_argument('--signature', default='Test')
 parser.add_argument('--model_dir', help='pretrained model')
 parser.add_argument('--data_dir', help='directory for data')
 parser.add_argument('--save_dir', default='./runs', help='directory for result')
-parser.add_argument('--network', default='xcp', help='directory for result')
+parser.add_argument('--models', default='xcp', help='directory for result')
 opt = parser.parse_args()
 print(opt)
 
@@ -46,25 +49,25 @@ class DATA(object):
         self.data_root = data_root
         self.len = 0
         transform_xcp = transforms.Compose([transforms.ToPILImage(),
-                                             transforms.Resize((112, 112)),
-                                             transforms.Resize((299, 299)),
-                                             transforms.ToTensor(),
-                                             transforms.Normalize([0.5] * 3, [0.5] * 3)])
+                                            transforms.Resize((112, 112)),
+                                            transforms.Resize((299, 299)),
+                                            transforms.ToTensor(),
+                                            transforms.Normalize([0.5] * 3, [0.5] * 3)])
 
         transform_vgg = transforms.Compose([transforms.ToPILImage(),
-                                                 transforms.Resize((224, 224)),
-                                                 transforms.ToTensor(),
-                                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+                                            transforms.Resize((224, 224)),
+                                            transforms.ToTensor(),
+                                            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
         transform_mask_xcp = transforms.Compose([transforms.ToPILImage(),
-                                                      transforms.Resize((19, 19)),
-                                                      transforms.Grayscale(num_output_channels=1),
-                                                      transforms.ToTensor()])
+                                                 transforms.Resize((19, 19)),
+                                                 transforms.Grayscale(num_output_channels=1),
+                                                 transforms.ToTensor()])
 
         transform_mask_vgg = transforms.Compose([transforms.ToPILImage(),
-                                                      transforms.Resize((28, 28)),
-                                                      transforms.Grayscale(num_output_channels=1),
-                                                      transforms.ToTensor()])
+                                                 transforms.Resize((28, 28)),
+                                                 transforms.Grayscale(num_output_channels=1),
+                                                 transforms.ToTensor()])
 
         if opt.network == 'xcp':
             self.transform = transform_xcp
@@ -115,7 +118,6 @@ class DATA(object):
             fake_label = 0
         return img_real, mask_real, 0, img_fake, mask_fake, fake_label
 
-
     def __len__(self):
         return self.len
 
@@ -123,19 +125,22 @@ class DATA(object):
 def get_batch(data_loader):
     while True:
         for sequence in data_loader:
-            batch = sequence[0].cuda(), sequence[1].cuda(), sequence[2].cuda(), sequence[3].cuda(), sequence[4].cuda(), sequence[5].cuda()
+            batch = sequence[0].cuda(), sequence[1].cuda(), sequence[2].cuda(), sequence[3].cuda(), sequence[4].cuda(), \
+                    sequence[5].cuda()
             yield batch
 
 
 print("Initializing Data Loader")
 train_data = DATA(data_root=(opt.data_dir + 'train/'))
 # train_data = DATA(data_root=(opt.data_dir + 'dfdc_train_part_00/'))
-train_loader = DataLoader(train_data, num_workers=8, batch_size=opt.batch_size//2, shuffle=True, drop_last=True, pin_memory=True)
+train_loader = DataLoader(train_data, num_workers=8, batch_size=opt.batch_size // 2, shuffle=True, drop_last=True,
+                          pin_memory=True)
 training_batch_generator = get_batch(train_loader)
 
 test_data = DATA(data_root=(opt.data_dir + 'validation/'))
 # test_data = DATA(data_root=(opt.data_dir + 'dfdc_train_part_00/'))
-test_loader = DataLoader(test_data, num_workers=8, batch_size=opt.batch_size//2, shuffle=True, drop_last=True, pin_memory=True)
+test_loader = DataLoader(test_data, num_workers=8, batch_size=opt.batch_size // 2, shuffle=True, drop_last=True,
+                         pin_memory=True)
 testing_batch_generator = get_batch(test_loader)
 
 
@@ -202,8 +207,6 @@ def load_template(index):
 
 templates = load_template(1)
 
-
-
 print("Initializing Networks")
 
 if opt.network == 'xcp':
@@ -223,6 +226,7 @@ if opt.network == 'xcp':
     mp = nn.MaxPool2d(19).cuda()
 if opt.network == 'vgg':
     mp = nn.MaxPool2d(28).cuda()
+
 
 def display(mask_gt, mask_pred):
     mask_gt_cpu = mask_gt.cpu()
@@ -261,10 +265,12 @@ def display(mask_gt, mask_pred):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
+
 if opt.network == 'xcp':
     mask_dne = torch.ones((1, 19, 19)) * 100
 if opt.network == 'vgg':
     mask_dne = torch.ones((1, 28, 28)) * 100
+
 
 def sup_loss(mask_gt, mask):
     if opt.network == 'xcp':
@@ -275,12 +281,13 @@ def sup_loss(mask_gt, mask):
         mask_exist_index = mask_gt.reshape(16, 784).mean(dim=1)
         zeros = torch.zeros(28, 28)
         ones = torch.ones(28, 28)
-    mask_exist_index = (mask_exist_index!=100).nonzero().squeeze()
+    mask_exist_index = (mask_exist_index != 100).nonzero().squeeze()
     mask_exist = torch.index_select(mask, 0, mask_exist_index)
     mask_gt_exist = torch.index_select(mask_gt, 0, mask_exist_index)
     mask_gt_exist_bin = torch.where(mask_gt_exist.cpu() < 0.1, zeros, ones).cuda()
     loss = l1_loss(mask_exist, mask_gt_exist_bin)
     return loss
+
 
 def train(batch, mask_gt, label):
     model.train()

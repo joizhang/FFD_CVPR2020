@@ -4,8 +4,8 @@ import os
 import torch
 import torch.nn as nn
 from imageio import imread
-from network.xception import xception
-from network.vgg import vgg16
+from models.xception import xception
+from models.vgg import vgg16
 from torchvision import transforms
 import torchvision.utils as vutils
 from torch.utils.data import DataLoader
@@ -13,6 +13,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score, auc
 from sklearn import metrics
 import matplotlib.pyplot as plt
 import pickle
+
 torch.backends.deterministic = True
 
 parser = argparse.ArgumentParser()
@@ -28,6 +29,7 @@ print(opt)
 os.environ["CUDA_VISIBLE_DEVICES"] = str(opt.gpu)
 torch.manual_seed(opt.seed)
 torch.cuda.manual_seed_all(opt.seed)
+
 
 #################################################################################################################
 class DATA(object):
@@ -72,7 +74,6 @@ print("Initializing Data Loader")
 data = DATA(data_root=(opt.data_dir + 'test/'))
 loader = DataLoader(data, num_workers=8, batch_size=opt.batch_size, shuffle=False, drop_last=False, pin_memory=True)
 
-
 print("Initializing Networks")
 # model_xcp = xception(2)
 # checkpoint = torch.load(opt.modeldir)
@@ -85,6 +86,8 @@ model_vgg.load_state_dict(checkpoint['module'])
 model_vgg.eval().cuda()
 
 softmax = nn.Softmax(dim=1)
+
+
 def test(image):
     with torch.no_grad():
         z = model_vgg(image)
@@ -107,7 +110,7 @@ for iteration, batch in enumerate(loader):
 print(scores)
 print(preds)
 print(labels)
-pickle.dump([scores, preds, labels], open( "vgg_base.pickle", "wb" ) )
+pickle.dump([scores, preds, labels], open("vgg_base.pickle", "wb"))
 acc = accuracy_score(labels, preds)
 fpr, tpr, thresholds = metrics.roc_curve(labels, scores, drop_intermediate=False)
 print(fpr)
@@ -125,28 +128,30 @@ tpr_2_00 = -1
 tpr_5_00 = -1
 for i in range(len(fpr)):
     if fpr[i] > 0.0001 and tpr_0_01 == -1:
-        tpr_0_01 = tpr[i-1]
+        tpr_0_01 = tpr[i - 1]
     if fpr[i] > 0.0002 and tpr_0_02 == -1:
-        tpr_0_02 = tpr[i-1]
+        tpr_0_02 = tpr[i - 1]
     if fpr[i] > 0.0005 and tpr_0_05 == -1:
-        tpr_0_05 = tpr[i-1]
+        tpr_0_05 = tpr[i - 1]
     if fpr[i] > 0.001 and tpr_0_10 == -1:
-        tpr_0_10 = tpr[i-1]
+        tpr_0_10 = tpr[i - 1]
     if fpr[i] > 0.002 and tpr_0_20 == -1:
-        tpr_0_20 = tpr[i-1]
+        tpr_0_20 = tpr[i - 1]
     if fpr[i] > 0.005 and tpr_0_50 == -1:
-        tpr_0_50 = tpr[i-1]
+        tpr_0_50 = tpr[i - 1]
     if fpr[i] > 0.01 and tpr_1_00 == -1:
-        tpr_1_00 = tpr[i-1]
+        tpr_1_00 = tpr[i - 1]
     if fpr[i] > 0.02 and tpr_2_00 == -1:
-        tpr_2_00 = tpr[i-1]
+        tpr_2_00 = tpr[i - 1]
     if fpr[i] > 0.05 and tpr_5_00 == -1:
-        tpr_5_00 = tpr[i-1]
+        tpr_5_00 = tpr[i - 1]
 
 roc_auc = auc(fpr, tpr)
 plt.plot(fpr, tpr, lw=1, alpha=0.3,
          label='ROC fold (AUC = %0.2f)' % (roc_auc))
-print("ACC: {:f}\nAUC: {:f}\nEER: {:f}\nTPR@0.01: {:f}\nTPR@0.10: {:f}\nTPR@1.00: {:f}".format(acc, roc_auc, eer, tpr_0_01, tpr_0_10, tpr_1_00))
+print("ACC: {:f}\nAUC: {:f}\nEER: {:f}\nTPR@0.01: {:f}\nTPR@0.10: {:f}\nTPR@1.00: {:f}".format(acc, roc_auc, eer,
+                                                                                               tpr_0_01, tpr_0_10,
+                                                                                               tpr_1_00))
 
 plt.xlim([-0.05, 1.05])
 plt.ylim([-0.05, 1.05])

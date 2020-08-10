@@ -4,8 +4,8 @@ import os
 import torch
 import torch.nn as nn
 from imageio import imread
-from network.xception_map import xception
-from network.vgg_map import vgg16
+from models.xception_map import xception
+from models.vgg_map import vgg16
 from torchvision import transforms
 import torchvision.utils as vutils
 from torch.utils.data import DataLoader
@@ -14,6 +14,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score, auc
 import matplotlib.pyplot as plt
 import pickle
 from scipy.io import savemat
+
 torch.backends.deterministic = True
 
 parser = argparse.ArgumentParser()
@@ -22,7 +23,7 @@ parser.add_argument('--batch_size', type=int, default=16, help='batch size')
 parser.add_argument('--seed', default=1, type=int, help='manual seed')
 parser.add_argument('--data_dir', help='root directory for data')
 parser.add_argument('--modeldir', help='model in pickle file to test')
-parser.add_argument('--network', default='xcp', help='directory for result')
+parser.add_argument('--models', default='xcp', help='directory for result')
 opt = parser.parse_args()
 print(opt)
 
@@ -30,6 +31,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = str(opt.gpu)
 torch.manual_seed(opt.seed)
 torch.cuda.manual_seed_all(opt.seed)
 data_dir = opt.data_dir + 'test/'
+
+
 #################################################################################################################
 class DATA(object):
     def __init__(self, data_root, image_width=299, image_height=299):
@@ -38,15 +41,14 @@ class DATA(object):
         self.image_height = image_height
 
         transform_xcp = transforms.Compose([transforms.ToPILImage(),
-                                             transforms.Resize((299, 299)),
-                                             transforms.ToTensor(),
-                                             transforms.Normalize([0.5] * 3, [0.5] * 3)])
+                                            transforms.Resize((299, 299)),
+                                            transforms.ToTensor(),
+                                            transforms.Normalize([0.5] * 3, [0.5] * 3)])
 
         transform_vgg = transforms.Compose([transforms.ToPILImage(),
-                                                 transforms.Resize((224, 224)),
-                                                 transforms.ToTensor(),
-                                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-
+                                            transforms.Resize((224, 224)),
+                                            transforms.ToTensor(),
+                                            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
         if opt.network == 'xcp':
             self.transform = transform_xcp
@@ -131,24 +133,27 @@ def display(mask_gt, mask_pred):
                                      mask_gt_cpu[8], mask_gt_cpu[9], mask_gt_cpu[10], mask_gt_cpu[11],
                                      mask_gt_cpu[12], mask_gt_cpu[13], mask_gt_cpu[14], mask_gt_cpu[15]), axis=2)
 
-    mask_bin_cpu = torch.where(mask_gt_cpu < 0.1,  torch.zeros(19, 19), torch.ones(19, 19))
+    mask_bin_cpu = torch.where(mask_gt_cpu < 0.1, torch.zeros(19, 19), torch.ones(19, 19))
     mask_bin_concat = np.concatenate((mask_bin_cpu[0], mask_bin_cpu[1], mask_bin_cpu[2], mask_bin_cpu[3],
                                       mask_bin_cpu[4], mask_bin_cpu[5], mask_bin_cpu[6], mask_bin_cpu[7],
                                       mask_bin_cpu[8], mask_bin_cpu[9], mask_bin_cpu[10], mask_bin_cpu[11],
                                       mask_bin_cpu[12], mask_bin_cpu[13], mask_bin_cpu[14], mask_bin_cpu[15]), axis=2)
 
-    vec_gt = torch.from_numpy(np.dot(mask_bin_cpu.reshape(16, 361).numpy(), np.linalg.pinv(templates.cpu().reshape(10, 361).numpy()))).cuda()
+    vec_gt = torch.from_numpy(
+        np.dot(mask_bin_cpu.reshape(16, 361).numpy(), np.linalg.pinv(templates.cpu().reshape(10, 361).numpy()))).cuda()
     mask_calc_cpu = torch.mm(vec_gt, templates.reshape(10, 361)).reshape((16, 1, 19, 19)).cpu()
     mask_calc_concat = np.concatenate((mask_calc_cpu[0], mask_calc_cpu[1], mask_calc_cpu[2], mask_calc_cpu[3],
                                        mask_calc_cpu[4], mask_calc_cpu[5], mask_calc_cpu[6], mask_calc_cpu[7],
                                        mask_calc_cpu[8], mask_calc_cpu[9], mask_calc_cpu[10], mask_calc_cpu[11],
-                                       mask_calc_cpu[12], mask_calc_cpu[13], mask_calc_cpu[14], mask_calc_cpu[15]), axis=2)
+                                       mask_calc_cpu[12], mask_calc_cpu[13], mask_calc_cpu[14], mask_calc_cpu[15]),
+                                      axis=2)
 
     mask_pred_cpu = mask_pred.cpu().detach()
     mask_pred_concat = np.concatenate((mask_pred_cpu[0], mask_pred_cpu[1], mask_pred_cpu[2], mask_pred_cpu[3],
                                        mask_pred_cpu[4], mask_pred_cpu[5], mask_pred_cpu[6], mask_pred_cpu[7],
                                        mask_pred_cpu[8], mask_pred_cpu[9], mask_pred_cpu[10], mask_pred_cpu[11],
-                                       mask_pred_cpu[12], mask_pred_cpu[13], mask_pred_cpu[14], mask_pred_cpu[15]), axis=2)
+                                       mask_pred_cpu[12], mask_pred_cpu[13], mask_pred_cpu[14], mask_pred_cpu[15]),
+                                      axis=2)
 
     mask_out = np.concatenate((mask_gt_concat, mask_bin_concat, mask_calc_concat, mask_pred_concat), axis=1)
     mask_out = np.repeat(mask_out.reshape(76, 304, 1), 3, axis=2)
@@ -163,7 +168,6 @@ data = DATA(data_root=(data_dir))
 loader = DataLoader(data, num_workers=8, batch_size=opt.batch_size, shuffle=False, drop_last=False, pin_memory=True)
 templates = load_template(0)
 
-
 print("Initializing Networks")
 if opt.network == 'xcp':
     model = xception(templates, 2, False)
@@ -176,6 +180,8 @@ model.eval().cuda()
 
 sigmoid = nn.Sigmoid()
 softmax = nn.Softmax(dim=1)
+
+
 def test(batch):
     with torch.no_grad():
         x, mask, vec = model(batch)
@@ -205,7 +211,8 @@ for iteration, batch in enumerate(loader):
     for i in range(len(fname)):
         result[fname[i]] = [label_list[i], score_list[i]]
     for i in range(len(fname)):
-        vutils.save_image(map[i], './runs/mask_pred/' + fname[i], nrow=8, padding=2, normalize=False, range=None, scale_each=False, pad_value=0)
+        vutils.save_image(map[i], './runs/mask_pred/' + fname[i], nrow=8, padding=2, normalize=False, range=None,
+                          scale_each=False, pad_value=0)
 
 pickle.dump(result, open('./xcp_mam_result.pickle', 'wb'))
 print('\rPrograss: {:d}/{:d}'.format(iteration, total))
@@ -216,36 +223,37 @@ eer = fnr[np.nanargmin(np.absolute((fnr - fpr)))]
 tprs = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
 for i in range(len(fpr)):
     if fpr[i] > 0.0000000001 and tprs[0] == -1:
-        tprs[0] = tpr[i-1]
+        tprs[0] = tpr[i - 1]
     if fpr[i] > 0.000000001 and tprs[1] == -1:
-        tprs[1] = tpr[i-1]
+        tprs[1] = tpr[i - 1]
     if fpr[i] > 0.00000001 and tprs[2] == -1:
-        tprs[2] = tpr[i-1]
+        tprs[2] = tpr[i - 1]
     if fpr[i] > 0.0000001 and tprs[3] == -1:
-        tprs[3] = tpr[i-1]
+        tprs[3] = tpr[i - 1]
     if fpr[i] > 0.000001 and tprs[4] == -1:
-        tprs[4] = tpr[i-1]
+        tprs[4] = tpr[i - 1]
     if fpr[i] > 0.00001 and tprs[5] == -1:
-        tprs[5] = tpr[i-1]
+        tprs[5] = tpr[i - 1]
     if fpr[i] > 0.0001 and tprs[6] == -1:
-        tprs[6] = tpr[i-1]
+        tprs[6] = tpr[i - 1]
     if fpr[i] > 0.001 and tprs[7] == -1:
-        tprs[7] = tpr[i-1]
+        tprs[7] = tpr[i - 1]
     if fpr[i] > 0.01 and tprs[8] == -1:
-        tprs[8] = tpr[i-1]
+        tprs[8] = tpr[i - 1]
     if fpr[i] > 0.1 and tprs[9] == -1:
-        tprs[9] = tpr[i-1]
+        tprs[9] = tpr[i - 1]
+
 
 def calculate_pbca():
     transform_mask_xcp = transforms.Compose([transforms.ToPILImage(),
-                                                  transforms.Resize((19, 19)),
-                                                  transforms.Grayscale(num_output_channels=1),
-                                                  transforms.ToTensor()])
+                                             transforms.Resize((19, 19)),
+                                             transforms.Grayscale(num_output_channels=1),
+                                             transforms.ToTensor()])
 
     transform_mask_vgg = transforms.Compose([transforms.ToPILImage(),
-                                                  transforms.Resize((28, 28)),
-                                                  transforms.Grayscale(num_output_channels=1),
-                                                  transforms.ToTensor()])
+                                             transforms.Resize((28, 28)),
+                                             transforms.Grayscale(num_output_channels=1),
+                                             transforms.ToTensor()])
 
     if opt.network == 'xcp':
         transform_mask = transform_mask_xcp
@@ -286,7 +294,7 @@ plt.plot(fpr, tpr, lw=1, alpha=0.3,
          label='ROC fold (AUC = %0.2f)' % (roc_auc))
 print("ACC: {:f}\nAUC: {:f}\nEER: {:f}".format(acc, roc_auc, eer))
 for i in range(10):
-    print("10e-{:d}: {:f}".format(10-i, tprs[i]))
+    print("10e-{:d}: {:f}".format(10 - i, tprs[i]))
 #
 # out_file = open('./runs/temp.pickle', 'wb')
 # pickle.dump(result, out_file)

@@ -1,9 +1,9 @@
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
-from .utils import load_state_dict_from_url
+
+from torch.hub import load_state_dict_from_url
+
 model_urls = {
     'vgg11': 'https://download.pytorch.org/models/vgg11-bbd30ac9.pth',
     'vgg13': 'https://download.pytorch.org/models/vgg13-c768596a.pth',
@@ -15,46 +15,49 @@ model_urls = {
     'vgg19_bn': 'https://download.pytorch.org/models/vgg19_bn-c79401a0.pth',
 }
 
+
 class SeparableConv2d(nn.Module):
-    def __init__(self,in_channels,out_channels,kernel_size=1,stride=1,padding=0,dilation=1,bias=False):
-        super(SeparableConv2d,self).__init__()
+    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=False):
+        super(SeparableConv2d, self).__init__()
 
-        self.conv1 = nn.Conv2d(in_channels,in_channels,kernel_size,stride,padding,dilation,groups=in_channels,bias=bias)
-        self.pointwise = nn.Conv2d(in_channels,out_channels,1,1,0,1,1,bias=bias)
+        self.conv1 = nn.Conv2d(in_channels, in_channels, kernel_size, stride, padding, dilation, groups=in_channels,
+                               bias=bias)
+        self.pointwise = nn.Conv2d(in_channels, out_channels, 1, 1, 0, 1, 1, bias=bias)
 
-    def forward(self,x):
+    def forward(self, x):
         x = self.conv1(x)
         x = self.pointwise(x)
         return x
 
+
 class Block(nn.Module):
-    def __init__(self,in_filters,out_filters,reps,strides=1,start_with_relu=True,grow_first=True):
+    def __init__(self, in_filters, out_filters, reps, strides=1, start_with_relu=True, grow_first=True):
         super(Block, self).__init__()
 
-        if out_filters != in_filters or strides!=1:
-            self.skip = nn.Conv2d(in_filters,out_filters,1,stride=strides, bias=False)
+        if out_filters != in_filters or strides != 1:
+            self.skip = nn.Conv2d(in_filters, out_filters, 1, stride=strides, bias=False)
             self.skipbn = nn.BatchNorm2d(out_filters)
         else:
-            self.skip=None
+            self.skip = None
 
         self.relu = nn.ReLU(inplace=True)
-        rep=[]
+        rep = []
 
-        filters=in_filters
+        filters = in_filters
         if grow_first:
             rep.append(self.relu)
-            rep.append(SeparableConv2d(in_filters,out_filters,3,stride=1,padding=1,bias=False))
+            rep.append(SeparableConv2d(in_filters, out_filters, 3, stride=1, padding=1, bias=False))
             rep.append(nn.BatchNorm2d(out_filters))
             filters = out_filters
 
-        for i in range(reps-1):
+        for i in range(reps - 1):
             rep.append(self.relu)
-            rep.append(SeparableConv2d(filters,filters,3,stride=1,padding=1,bias=False))
+            rep.append(SeparableConv2d(filters, filters, 3, stride=1, padding=1, bias=False))
             rep.append(nn.BatchNorm2d(filters))
 
         if not grow_first:
             rep.append(self.relu)
-            rep.append(SeparableConv2d(in_filters,out_filters,3,stride=1,padding=1,bias=False))
+            rep.append(SeparableConv2d(in_filters, out_filters, 3, stride=1, padding=1, bias=False))
             rep.append(nn.BatchNorm2d(out_filters))
 
         if not start_with_relu:
@@ -63,10 +66,10 @@ class Block(nn.Module):
             rep[0] = nn.ReLU(inplace=False)
 
         if strides != 1:
-            rep.append(nn.MaxPool2d(3,strides,1))
+            rep.append(nn.MaxPool2d(3, strides, 1))
         self.rep = nn.Sequential(*rep)
 
-    def forward(self,inp):
+    def forward(self, inp):
         x = self.rep(inp)
 
         if self.skip is not None:
@@ -75,7 +78,7 @@ class Block(nn.Module):
         else:
             skip = inp
 
-        x+=skip
+        x += skip
         return x
 
 
@@ -91,7 +94,7 @@ class VGG_16(nn.Module):
         super(VGG_16, self).__init__()
 
         self.templates = templates
-        self.map_conv1=Block(256,128,2,2,start_with_relu=True,grow_first=False)
+        self.map_conv1 = Block(256, 128, 2, 2, start_with_relu=True, grow_first=False)
         self.map_linear = nn.Linear(128, 10)
         self.relu = nn.ReLU(inplace=True)
 
@@ -111,7 +114,6 @@ class VGG_16(nn.Module):
 
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
 
-
         self.classifier = nn.Sequential(
             nn.Linear(512 * 7 * 7, 4096),
             nn.ReLU(True),
@@ -120,7 +122,7 @@ class VGG_16(nn.Module):
             nn.ReLU(True),
             nn.Dropout(),
             nn.Linear(4096, num_classes),
-            )
+        )
         self._initialize_weights()
 
     def mask_template(self, x):
@@ -145,14 +147,14 @@ class VGG_16(nn.Module):
         """
         x = F.relu(self.conv_1_1(x))
         x = F.relu(self.conv_1_2(x))
-        x = F.max_pool2d(x, 2, 2)      # B*64*112*112
+        x = F.max_pool2d(x, 2, 2)  # B*64*112*112
         x = F.relu(self.conv_2_1(x))
         x = F.relu(self.conv_2_2(x))
-        x = F.max_pool2d(x, 2, 2)      # B*128*56*56
+        x = F.max_pool2d(x, 2, 2)  # B*128*56*56
         x = F.relu(self.conv_3_1(x))
         x = F.relu(self.conv_3_2(x))
         x = F.relu(self.conv_3_3(x))
-        x = F.max_pool2d(x, 2, 2)      # B*256*28*28
+        x = F.max_pool2d(x, 2, 2)  # B*256*28*28
         x, mask, vec = self.mask_template(x)
 
         # map_ = torch.sigmoid(x[:,-1,:,:].unsqueeze(1))
@@ -162,7 +164,7 @@ class VGG_16(nn.Module):
         x = F.relu(self.conv_4_1(x))
         x = F.relu(self.conv_4_2(x))
         x = F.relu(self.conv_4_3(x))
-        x = F.max_pool2d(x, 2, 2)      # B*512*14*14
+        x = F.max_pool2d(x, 2, 2)  # B*512*14*14
         x = F.relu(self.conv_5_1(x))
         x = F.relu(self.conv_5_2(x))
         x = F.relu(self.conv_5_3(x))
@@ -190,6 +192,7 @@ class VGG_16(nn.Module):
             elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.constant_(m.bias, 0)
+
 
 def init_weights(m):
     classname = m.__class__.__name__
@@ -221,8 +224,7 @@ def vgg16(templates=0, num_classes=2, load_pretrain=True, progress=True, **kwarg
     # model = torch.load('./pretrain_vgg16.pth')
     # print("loaded")
     if load_pretrain:
-        state_dict = load_state_dict_from_url(model_urls['vgg16'],
-                                              progress=progress)
+        state_dict = load_state_dict_from_url(model_urls['vgg16'], progress=progress)
         state_dict_new = {}
         for name, weights in state_dict.items():
             # print(name)
