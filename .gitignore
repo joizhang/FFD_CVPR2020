@@ -100,7 +100,7 @@ ENV/
 # mypy
 .mypy_cache/
 
-# Custom
+# Custom folder
 .idea/
 temp/
 data/
@@ -109,8 +109,11 @@ saved/
 images/
 weights/
 
-*.pt
 *.gz
-*.pb
 *.csv
 *.dat
+
+# Model
+*.pth
+*.pb
+*.pt

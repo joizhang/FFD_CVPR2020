@@ -61,6 +61,8 @@ def train(train_loader, model, optimizer, criterion, epoch, args):
         optimizer.step()
 
         batch_time.update(time.time() - end)
+        end = time.time()
+
         if batch_idx % args.print_freq == 0:
             progress.display(batch_idx)
 
@@ -87,6 +89,7 @@ def validate(val_loader, model, criterion, args):
 
             # measure elapsed time
             batch_time.update(time.time() - end)
+            end = time.time()
 
             if i % args.print_freq == 0:
                 progress.display(i)
@@ -110,3 +113,7 @@ def plot_image(data):
         if i == 4:
             plt.show()
             break
+
+
+if __name__ == '__main__':
+    print(models.__dict__['vgg16'])

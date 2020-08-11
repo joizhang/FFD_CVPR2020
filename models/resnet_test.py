@@ -1,6 +1,3 @@
-"""
-(Pytorch 图像分类实战 —— ImageNet 数据集)[https://xungejiang.com/2019/07/26/pytorch-imagenet/]
-"""
 import os
 import unittest
 
@@ -10,10 +7,13 @@ from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import dataset
 from torchvision import transforms, datasets
+from torchsummary import summary
 
-from models.vgg import vgg16
+from timm.models.resnet import resnet26d
+from timm.models.resnet import resnet26
 from tools.model_utils import validate
 from config import Config
+
 
 torch.backends.cudnn.benchmark = True
 
@@ -21,13 +21,14 @@ CONFIG = Config()
 hub.set_dir(CONFIG['TORCH_HOME'])
 
 
-class VGGTestCase(unittest.TestCase):
+class ResNetTestCase(unittest.TestCase):
 
-    def test_vgg16(self):
+    def test_resnet(self):
         gpu = 0
         torch.cuda.set_device(gpu)
-        model = vgg16(pretrained=True)
+        model = resnet26d(pretrained=True)
         model = model.cuda(gpu)
+        summary(model, input_size=(3, 224, 224))
         criterion = nn.CrossEntropyLoss().cuda(gpu)
 
         valdir = os.path.join(CONFIG['IMAGENET_HOME'], 'val')
@@ -47,4 +48,3 @@ class VGGTestCase(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
