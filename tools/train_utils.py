@@ -19,7 +19,7 @@ def parse_args():
                         help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 10)')
-    parser.add_argument('--batch-size', type=int, default=8, metavar='N', help='batch size')
+    parser.add_argument('--batch-size', type=int, default=100, metavar='N', help='batch size')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
     # parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
     #                     help='Learning rate step gamma (default: 0.7)')
@@ -44,34 +44,31 @@ def train(train_loader, model, optimizer, criterion, epoch, args):
     model.train()
 
     end = time.time()
-    with torch.no_grad():
-        for batch_idx, (images, target) in enumerate(train_loader):
-            images, target = images.cuda(), target.cuda()
+    for batch_idx, (images, target) in enumerate(train_loader):
+        images, target = images.cuda(), target.cuda()
+        # compute output
+        output = model(images)
+        loss = criterion(output, target)
 
-            # compute output
-            output = model(images)
-            loss = criterion(output, target)
+        # measure accuracy and record loss
+        acc1, = accuracy(output, target)
+        losses.update(loss.item(), images.size(0))
+        top1.update(acc1[0], images.size(0))
 
-            # measure accuracy and record loss
-            acc1, = accuracy(output, target)
-            losses.update(loss.item(), images.size(0))
-            top1.update(acc1[0], images.size(0))
+        # compute gradient and do Adam step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-            # compute gradient and do Adam step
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            batch_time.update(time.time() - end)
-            if batch_idx % args.print_freq == 0:
-                progress.display(batch_idx)
+        batch_time.update(time.time() - end)
+        if batch_idx % args.print_freq == 0:
+            progress.display(batch_idx)
 
 
 def validate(val_loader, model, criterion, args):
     batch_time = AverageMeter('Time', ':6.3f')
-    losses = AverageMeter('Loss', ':.4e')
     top1 = AverageMeter('Acc@1', ':6.2f')
-    progress = ProgressMeter(len(val_loader), [batch_time, losses, top1], prefix='Test: ')
+    progress = ProgressMeter(len(val_loader), [batch_time, top1], prefix='Test: ')
 
     model.eval()
 
@@ -86,7 +83,6 @@ def validate(val_loader, model, criterion, args):
 
             # measure accuracy and record loss
             acc1, = accuracy(output, target)
-            losses.update(loss.item(), images.size(0))
             top1.update(acc1[0], images.size(0))
 
             # measure elapsed time

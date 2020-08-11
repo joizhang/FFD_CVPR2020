@@ -109,6 +109,7 @@ saved/
 images/
 weights/
 
+*.pt
 *.gz
 *.pb
 *.csv
