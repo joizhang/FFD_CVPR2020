@@ -167,8 +167,8 @@ class Xception(nn.Module):
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, nn.BatchNorm2d):
-                m.weight.test_data.fill_(1)
-                m.bias.test_data.zero_()
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
 
     def get_classifier(self):
         return self.fc
