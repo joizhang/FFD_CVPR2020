@@ -167,8 +167,8 @@ class Xception(nn.Module):
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
+                m.weight.test_data.fill_(1)
+                m.bias.test_data.zero_()
 
     def get_classifier(self):
         return self.fc
@@ -225,26 +225,26 @@ class Xception(nn.Module):
 def init_weights(m):
     classname = m.__class__.__name__
     if classname.find('SeparableConv2d') != -1:
-        m.conv1.weight.data.normal_(0.0, 0.01)
+        m.conv1.weight.test_data.normal_(0.0, 0.01)
         if m.conv1.bias is not None:
-            m.conv1.bias.data.fill_(0)
-        m.pointwise.weight.data.normal_(0.0, 0.01)
+            m.conv1.bias.test_data.fill_(0)
+        m.pointwise.weight.test_data.normal_(0.0, 0.01)
         if m.pointwise.bias is not None:
-            m.pointwise.bias.data.fill_(0)
+            m.pointwise.bias.test_data.fill_(0)
 
     elif classname.find('Conv') != -1 or classname.find('Linear') != -1:
-        m.weight.data.normal_(0.0, 0.01)
+        m.weight.test_data.normal_(0.0, 0.01)
         if m.bias is not None:
-            m.bias.data.fill_(0)
+            m.bias.test_data.fill_(0)
     elif classname.find('BatchNorm') != -1:
-        m.weight.data.normal_(1.0, 0.01)
-        m.bias.data.fill_(0)
+        m.weight.test_data.normal_(1.0, 0.01)
+        m.bias.test_data.fill_(0)
     elif classname.find('LSTM') != -1:
         for i in m._parameters:
             if i.__class__.__name__.find('weight') != -1:
-                i.data.normal_(0.0, 0.01)
+                i.test_data.normal_(0.0, 0.01)
             elif i.__class__.__name__.find('bias') != -1:
-                i.bias.data.fill_(0)
+                i.bias.test_data.fill_(0)
 
 
 def xception(pretrained=False, num_classes=1000, in_chans=3, **kwargs):

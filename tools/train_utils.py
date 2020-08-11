@@ -94,6 +94,8 @@ def validate(val_loader, model, criterion, args):
             if i % args.print_freq == 0:
                 progress.display(i)
 
+    return top1.avg
+
 
 def write_tfboard(writer, vals, itr, name):
     for idx, item in enumerate(vals):

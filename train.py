@@ -62,15 +62,26 @@ def main():
         return
 
     print("Start Training")
+    best_acc1 = 0.
     for epoch in range(1, args.epochs + 1):
         train(train_loader, model, optimizer, criterion, epoch, args)
-        validate(val_loader, model, criterion, args)
+        acc1 = validate(val_loader, model, criterion, args)
 
-    torch.save(model.state_dict(), os.path.join('weight', '{}_dffd.pt'.format(args.arch)))
+        best_acc1 = max(acc1, best_acc1)
+
+        if epoch == 1 or epoch == args.epochs:
+            torch.save({
+                'epoch': epoch + 1,
+                'arch': args.arch,
+                'state_dict': model.state_dict(),
+                'best_acc1': best_acc1,
+                'optimizer': optimizer.state_dict(),
+            }, os.path.join('weights', '{}_dffd.pt'.format(args.arch)))
 
 
 if __name__ == '__main__':
     """
-    python train.py --data-dir /data/xinlin/mini-dffd
+    python train.py --data-dir /data/xinlin/mini-dffd --arch vgg16 --batch-size 100
+    python train.py --data-dir /data/xinlin/mini-dffd --arch xception --batch-size 50
     """
     main()
