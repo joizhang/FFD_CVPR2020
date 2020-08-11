@@ -107,7 +107,6 @@ data/
 logs/
 saved/
 images/
-weights/
 
 *.gz
 *.csv

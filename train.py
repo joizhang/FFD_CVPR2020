@@ -64,7 +64,7 @@ def main():
         train(train_loader, model, optimizer, criterion, epoch, args)
         validate(val_loader, model, criterion, args)
 
-    torch.save(model.state_dict(), "dffd.pt")
+    torch.save(model.state_dict(), os.path.join('weight', '{}_dffd.pt'.format(args.arch)))
 
 
 if __name__ == '__main__':
