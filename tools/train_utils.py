@@ -24,7 +24,7 @@ def parse_args():
     # parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
     #                     help='Learning rate step gamma (default: 0.7)')
     parser.add_argument('--gpu', type=int, default=0, help='GPU id to use.')
-    parser.add_argument('--seed', type=int, default=1, help='manual seed')
+    parser.add_argument('--seed', type=int, default=111, help='manual seed')
     # parser.add_argument('--signature', default=str(datetime.datetime.now()))
     parser.add_argument('--print-freq', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
