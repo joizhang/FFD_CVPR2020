@@ -21,26 +21,27 @@ normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5],
 
 The resize parameter of the validation transform should be 333, and make sure to center crop at 299x299
 """
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.utils.model_zoo as model_zoo
-from torch.nn import init
 
-pretrained_settings = {
+__all__ = ['xception']
+
+from tools.model_utils import load_pretrained
+
+default_cfgs = {
     'xception': {
-        'imagenet': {
-            'url': 'http://data.lip6.fr/cadene/pretrainedmodels/xception-b5690688.pth',
-            'input_space': 'RGB',
-            'input_size': [3, 299, 299],
-            'input_range': [0, 1],
-            'mean': [0.5, 0.5, 0.5],
-            'std': [0.5, 0.5, 0.5],
-            'num_classes': 1000,
-            'scale': 0.8975
-            # The resize parameter of the validation transform should be 333, and make sure to center crop at 299x299
-        }
+        'url': 'https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-cadene/xception-43020ad28.pth',
+        'input_size': (3, 299, 299),
+        'pool_size': (10, 10),
+        'crop_pct': 0.8975,
+        'interpolation': 'bicubic',
+        'mean': (0.5, 0.5, 0.5),
+        'std': (0.5, 0.5, 0.5),
+        'num_classes': 1000,
+        'first_conv': 'conv1',
+        'classifier': 'fc'
+        # The resize parameter of the validation transform should be 333, and make sure to center crop at 299x299
     }
 }
 
@@ -49,8 +50,8 @@ class SeparableConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=1, stride=1, padding=0, dilation=1, bias=False):
         super(SeparableConv2d, self).__init__()
 
-        self.conv1 = nn.Conv2d(in_channels, in_channels, kernel_size, stride, padding, dilation, groups=in_channels,
-                               bias=bias)
+        self.conv1 = nn.Conv2d(
+            in_channels, in_channels, kernel_size, stride, padding, dilation, groups=in_channels, bias=bias)
         self.pointwise = nn.Conv2d(in_channels, out_channels, 1, 1, 0, 1, 1, bias=bias)
 
     def forward(self, x):
@@ -117,15 +118,18 @@ class Xception(nn.Module):
     https://arxiv.org/pdf/1610.02357.pdf
     """
 
-    def __init__(self, num_classes=1000):
+    def __init__(self, num_classes=1000, in_chans=3, drop_rate=0., global_pool='avg'):
         """ Constructor
         Args:
             num_classes: number of classes
         """
         super(Xception, self).__init__()
+        self.drop_rate = drop_rate
+        self.global_pool = global_pool
         self.num_classes = num_classes
+        self.num_features = 2048
 
-        self.conv1 = nn.Conv2d(3, 32, 3, 2, 0, bias=False)
+        self.conv1 = nn.Conv2d(in_chans, 32, 3, 2, 0, bias=False)
         self.bn1 = nn.BatchNorm2d(32)
         self.relu = nn.ReLU(inplace=True)
 
@@ -153,11 +157,34 @@ class Xception(nn.Module):
         self.bn3 = nn.BatchNorm2d(1536)
 
         # do relu here
-        self.conv4 = SeparableConv2d(1536, 2048, 3, 1, 1)
-        self.bn4 = nn.BatchNorm2d(2048)
+        self.conv4 = SeparableConv2d(1536, self.num_features, 3, 1, 1)
+        self.bn4 = nn.BatchNorm2d(self.num_features)
 
-    def features(self, input):
-        x = self.conv1(input)
+        self.global_pool = nn.AdaptiveAvgPool2d(output_size=1)
+        self.fc = nn.Linear(self.num_features, num_classes)
+
+        # #------- init weights --------
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def get_classifier(self):
+        return self.fc
+
+    def reset_classifier(self, num_classes, global_pool='avg'):
+        self.num_classes = num_classes
+        self.global_pool = nn.AdaptiveAvgPool2d(output_size=1)
+        if num_classes:
+            num_features = self.num_features
+            self.fc = nn.Linear(num_features, num_classes)
+        else:
+            self.fc = nn.Identity()
+
+    def forward_features(self, x):
+        x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
 
@@ -184,19 +211,15 @@ class Xception(nn.Module):
 
         x = self.conv4(x)
         x = self.bn4(x)
+        x = self.relu(x)
         return x
 
-    def logits(self, features):
-        x = self.relu(features)
-
-        x = F.adaptive_avg_pool2d(x, (1, 1))
-        x = x.view(x.size(0), -1)
-        x = self.last_linear(x)
-        return x
-
-    def forward(self, inputs):
-        x = self.features(inputs)
-        x = self.logits(x)
+    def forward(self, x):
+        x = self.forward_features(x)
+        x = self.global_pool(x).flatten(1)
+        if self.drop_rate:
+            F.dropout(x, self.drop_rate, training=self.training)
+        x = self.fc(x)
         return x
 
 
@@ -225,17 +248,11 @@ def init_weights(m):
                 i.bias.data.fill_(0)
 
 
-def xception(num_classes=1000, load_pretrain=True):
-    model = Xception(num_classes=num_classes)
-    if load_pretrain:
-        state_dict = torch.load('./models/xception-b5690688.pth')
-        for name, weights in state_dict.items():
-            if 'pointwise' in name:
-                state_dict[name] = weights.unsqueeze(-1).unsqueeze(-1)
-        del state_dict['fc.weight']
-        del state_dict['fc.bias']
-        model.load_state_dict(state_dict, False)
-    else:
-        model.apply(init_weights)
-    model.last_linear = nn.Linear(2048, num_classes)
+def xception(pretrained=False, num_classes=1000, in_chans=3, **kwargs):
+    default_cfg = default_cfgs['xception']
+    model = Xception(num_classes=num_classes, in_chans=in_chans, **kwargs)
+    model.default_cfg = default_cfg
+    if pretrained:
+        load_pretrained(model, default_cfg, num_classes, in_chans)
+
     return model

@@ -15,7 +15,7 @@ Entire face synthesis: PGGAN, StyleGAN
 DFFD = {'ffhq': 'Real', 'faceapp': 'Fake', 'stargan': 'Fake', 'pggan': 'Fake'}
 
 
-class DATA(Dataset):
+class DffdDataset(Dataset):
 
     def __init__(self, data_root, mode, transform, classes=None, seed=111):
         """

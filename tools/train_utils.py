@@ -115,3 +115,7 @@ def plot_image(data):
         if i == 4:
             plt.show()
             break
+
+
+if __name__ == '__main__':
+    print(models.__dict__['vgg16'])

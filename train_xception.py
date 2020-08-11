@@ -9,7 +9,7 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
-from datasets.classifier_dataset import DATA
+from datasets.classifier_dataset import DffdDataset
 from models.xception import xception
 import models
 import matplotlib.pyplot as plt
