@@ -111,6 +111,7 @@ images/
 *.gz
 *.csv
 *.dat
+*.pickle
 
 # Model
 *.pth
