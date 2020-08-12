@@ -3,7 +3,6 @@ from glob import glob
 from pathlib import Path
 
 import cv2
-import numpy as np
 from torch.utils.data import Dataset
 
 """
@@ -22,7 +21,6 @@ class DffdDataset(Dataset):
         Args:
             classes (dict): {'Real': 0, 'Fake_Entire': 1, 'Fake_Partial': 2}
         """
-        np.random.seed(seed)
         self.data_root = data_root
         self.mode = mode
         self.transform = transform
@@ -34,7 +32,6 @@ class DffdDataset(Dataset):
             file_names = os.listdir(mode_path)
             for file_name in file_names:
                 self.data.append((os.path.join(mode_path, file_name), label))
-        np.random.shuffle(self.data)
 
     def __getitem__(self, index):
         image_path, label = self.data[index]

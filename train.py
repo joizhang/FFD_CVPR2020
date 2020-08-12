@@ -70,8 +70,9 @@ def main():
         best_acc1 = max(acc1, best_acc1)
 
         if epoch == 1 or epoch == args.epochs:
+            print('Save model')
             torch.save({
-                'epoch': epoch + 1,
+                'epoch': epoch,
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
                 'best_acc1': best_acc1,
