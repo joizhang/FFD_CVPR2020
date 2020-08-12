@@ -27,8 +27,8 @@ class VGGTestCase(unittest.TestCase):
         gpu = 0
         torch.cuda.set_device(gpu)
         model = vgg16(pretrained=True)
-        model = model.cuda(gpu)
-        criterion = nn.CrossEntropyLoss().cuda(gpu)
+        model = model.cuda()
+        criterion = nn.CrossEntropyLoss().cuda()
 
         valdir = os.path.join(CONFIG['IMAGENET_HOME'], 'val')
         self.assertEqual(True, os.path.exists(valdir))

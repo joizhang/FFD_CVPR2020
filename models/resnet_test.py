@@ -2,18 +2,16 @@ import os
 import unittest
 
 import torch
+from timm.models.resnet import resnet34
 from torch import hub
 from torch import nn
 from torch.backends import cudnn
 from torch.utils.data import dataset
-from torchvision import transforms, datasets
 from torchsummary import summary
+from torchvision import transforms, datasets
 
-from timm.models.resnet import resnet26d
-from timm.models.resnet import resnet26
-from tools.model_utils import validate
 from config import Config
-
+from tools.model_utils import validate
 
 torch.backends.cudnn.benchmark = True
 
@@ -26,10 +24,10 @@ class ResNetTestCase(unittest.TestCase):
     def test_resnet(self):
         gpu = 0
         torch.cuda.set_device(gpu)
-        model = resnet26d(pretrained=True)
-        model = model.cuda(gpu)
+        model = resnet34(pretrained=True)
+        model = model.cuda()
         summary(model, input_size=(3, 224, 224))
-        criterion = nn.CrossEntropyLoss().cuda(gpu)
+        criterion = nn.CrossEntropyLoss().cuda()
 
         valdir = os.path.join(CONFIG['IMAGENET_HOME'], 'val')
         self.assertEqual(True, os.path.exists(valdir))
@@ -40,7 +38,7 @@ class ResNetTestCase(unittest.TestCase):
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ])),
-            batch_size=10, shuffle=False,
+            batch_size=50, shuffle=False,
             num_workers=1, pin_memory=True)
 
         validate(val_loader, model, criterion)

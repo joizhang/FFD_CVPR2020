@@ -1,6 +1,7 @@
 import argparse
 import os
 import pickle
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,6 +14,8 @@ from torchvision import transforms
 
 import models
 from datasets.classifier_dataset import DffdDataset
+from tools.model_utils import AverageMeter, ProgressMeter, accuracy
+from tools.train_utils import parse_args
 
 torch.backends.cudnn.benchmark = True
 
@@ -67,11 +70,10 @@ def show_metrics():
         if fpr[i] > 0.05 and tpr_5_00 == -1:
             tpr_5_00 = tpr[i - 1]
     roc_auc = auc(fpr, tpr)
-    plt.plot(fpr, tpr, lw=1, alpha=0.3,
-             label='ROC fold (AUC = %0.2f)' % (roc_auc))
-    print("ACC: {:f}\nAUC: {:f}\nEER: {:f}\nTPR@0.01: {:f}\nTPR@0.10: {:f}\nTPR@1.00: {:f}".format(acc, roc_auc, eer,
-                                                                                                   tpr_0_01, tpr_0_10,
-                                                                                                   tpr_1_00))
+    plt.plot(fpr, tpr, lw=1, alpha=0.3, label='ROC fold (AUC = %0.2f)' % (roc_auc))
+    print("ACC: {:f} AUC: {:f} EER: {:f} TPR@0.01: {:f} TPR@0.10: {:f} TPR@1.00: {:f}".format(acc, roc_auc, eer,
+                                                                                              tpr_0_01, tpr_0_10,
+                                                                                              tpr_1_00))
     plt.xlim([-0.05, 1.05])
     plt.ylim([-0.05, 1.05])
     plt.xlabel('False Positive Rate')
@@ -81,27 +83,48 @@ def show_metrics():
     plt.show()
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', help='root directory for data')
-    parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--batch_size', type=int, default=100, help='batch size')
-    parser.add_argument('--seed', default=1, type=int, help='manual seed')
-    parser.add_argument('--save_dir', default='./runs', help='directory for result')
-    parser.add_argument('--modeldir', help='model in pickle file to test')
-    args = parser.parse_args()
+def test(test_loader, model, args):
+    batch_time = AverageMeter('Time', ':6.3f')
+    top1 = AverageMeter('Acc@1', ':6.2f')
+    progress = ProgressMeter(len(test_loader), [batch_time, top1], prefix='Test: ')
+
+    model.eval()
+
+    with torch.no_grad():
+        end = time.time()
+        for i, (images, target) in enumerate(test_loader):
+            images, target = images.cuda(), target.cuda()
+
+            # compute output
+            output = model(images)
+
+            # measure accuracy and record loss
+            acc1, = accuracy(output, target)
+            top1.update(acc1[0], images.size(0))
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if i % args.print_freq == 0:
+                progress.display(i)
+
+    return top1.avg
+
+
+def main():
+    args = parse_args()
     print(args)
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-    print("Initializing Networks")
-    model = models.__dict__[args.arch](pretrained=True)
+    print("Loading checkpoint '{}'".format(args.resume))
+    model = models.__dict__[args.arch](pretrained=False)
     model.cuda()
-    checkpoint = torch.load(args.modeldir)
+    checkpoint = torch.load(args.resume)
     model.load_state_dict(checkpoint['state_dict'])
-    print("=> loaded checkpoint '{}' (epoch {})".format(args.resume, checkpoint['epoch']))
 
     print("Initializing Data Loader")
     classes = {'Real': 0, 'Fake': 1}
@@ -112,7 +135,13 @@ if __name__ == '__main__':
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     test_data = DffdDataset(data_root=args.data_dir, mode='test', transform=transform, classes=classes, seed=args.seed)
-    loader = DataLoader(test_data, num_workers=1, batch_size=args.batch_size, shuffle=False, drop_last=False,
-                        pin_memory=True)
+    test_loader = DataLoader(test_data, num_workers=1, batch_size=args.batch_size, shuffle=False, drop_last=False,
+                             pin_memory=True)
 
+    test(test_loader, model, args)
     # show_metrics()
+
+
+if __name__ == '__main__':
+    # python test.py --data-dir /data/xinlin/mini-dffd --arch vgg16 --batch-size 100 --resume weights/vgg16_dffd.pt
+    main()

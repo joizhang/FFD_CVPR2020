@@ -23,4 +23,4 @@ class Config(dict):
 
 if __name__ == '__main__':
     config = Config()
-    print(config['TORCH_HOME'])
+    print(config)

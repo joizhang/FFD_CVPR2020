@@ -31,6 +31,8 @@ def parse_args():
     parser.add_argument('--evaluate', dest='evaluate', action='store_true',
                         help='evaluate model on validation set')
     # parser.add_argument('--save_dir', default='./runs', help='directory for result')
+    parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                        help='path to latest checkpoint (default: none)')
     opt = parser.parse_args()
     return opt
 

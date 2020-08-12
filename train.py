@@ -81,7 +81,7 @@ def main():
 
 if __name__ == '__main__':
     """
-    python train.py --data-dir /data/xinlin/mini-dffd --arch vgg16 --batch-size 100
-    python train.py --data-dir /data/xinlin/mini-dffd --arch xception --batch-size 50
+    python train.py --data-dir /data/xinlin/mini-dffd --arch vgg16 --epoch 10 --batch-size 100
+    python train.py --data-dir /data/xinlin/mini-dffd --arch xception --epoch 10 --batch-size 50
     """
     main()
